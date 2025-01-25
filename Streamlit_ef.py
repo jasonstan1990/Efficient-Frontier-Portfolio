@@ -255,7 +255,7 @@ shares_to_buy = np.floor(amount_per_stock / np.array(list(current_prices.values(
 
 # Έλεγχος αν για κάθε μετοχή μπορούμε να αγοράσουμε τουλάχιστον μία μετοχή
 if np.any(shares_to_buy < 1):
-    st.write("Δεν υπάρχει αρκετό κεφάλαιο για να αγοράσετε τουλάχιστον μία μετοχή από κάθε κατηγορία σύμφωνα με τα βάρη του χαρτοφυλακίου.")
+    st.write("There is not enough capital to buy at least one share from each category according to the portfolio weights.")
 else:
     # Υπολογισμός του συνολικού κόστους της αγοράς των μετοχών με βάση τα βάρη
     total_investment_needed = np.sum(shares_to_buy * np.array(list(current_prices.values())))
