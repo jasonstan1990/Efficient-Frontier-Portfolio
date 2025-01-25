@@ -255,7 +255,7 @@ shares_to_buy = np.floor(amount_per_stock / np.array(list(current_prices.values(
 
 # Έλεγχος αν για κάθε μετοχή μπορούμε να αγοράσουμε τουλάχιστον μία μετοχή
 if np.any(shares_to_buy < 1):
-    st.write("There is not enough capital to buy at least one share from each category according to the portfolio weights.")
+    st.write("Δεν υπάρχει αρκετό κεφάλαιο για να αγοράσετε τουλάχιστον μία μετοχή από κάθε κατηγορία σύμφωνα με τα βάρη του χαρτοφυλακίου.")
 else:
     # Υπολογισμός του συνολικού κόστους της αγοράς των μετοχών με βάση τα βάρη
     total_investment_needed = np.sum(shares_to_buy * np.array(list(current_prices.values())))
@@ -285,3 +285,154 @@ else:
         st.write(f"You need an additional €{-remaining_money} to buy stocks based on the portfolio weights.")
     else:
         st.write(f"You have enough money to buy the stocks based on the weights. Remaining money: €{remaining_money}")
+
+
+
+
+import yfinance as yf
+import pandas as pd
+import streamlit as st
+import plotly.graph_objects as go
+
+# Λίστα με tickers του S&P 500
+sp500_tickers = [
+    "AAPL", "MSFT", "AMZN", "GOOGL", "GOOG", "META", "TSLA", "BRK.B", "NVDA", "JPM",
+    "JNJ", "V", "UNH", "XOM", "PG", "MA", "HD", "CVX", "LLY", "MRK", "ABBV", "PEP",
+    "KO", "BAC", "PFE", "COST", "AVGO", "DIS", "ADBE", "CSCO", "CRM", "MCD", "ACN",
+    "NFLX", "ABT", "DHR", "NKE", "NEE", "LIN", "WMT", "PM", "TMO", "TMUS", "TXN",
+    "INTC", "ORCL", "UNP", "LOW", "AMD", "UPS", "AMGN", "GS", "CAT", "ELV", "PLD",
+    "BLK", "CVS", "MS", "AXP", "RTX", "HON", "MDT", "SCHW", "SPGI", "NOW", "IBM",
+    "C", "LMT", "DE", "BMY", "AMT", "COP", "QCOM", "BKNG", "ADI", "T", "ISRG",
+    "INTU", "GE", "MO", "ZTS", "WM", "GILD", "ADP", "MU", "VRTX", "SYK", "REGN",
+    "HUM", "SO", "EQIX", "SLB", "PGR", "BDX", "FDX", "ENPH", "CME", "ITW", "EL",
+    "FIS", "KLAC", "ATVI", "EOG", "CSX", "EW", "ICE", "MMC", "NSC", "AON", "TRV",
+    "APD", "PXD", "MPC", "TJX", "KMB", "COF", "PSA", "MRNA", "DG", "AEP", "BSX",
+    "HCA", "SHW", "GM", "PH", "ADI", "EMR", "ECL", "ETN", "KHC", "NOC", "CCI",
+    "MAR", "D", "ALGN", "MET", "SRE", "CTVA", "FTNT", "NXPI", "AIG", "CDNS", "MSI",
+    "IDXX", "CMG", "ALL", "ROST", "STZ", "F", "HLT", "WMB", "OXY", "RSG", "PCAR",
+    "VLO", "PAYX", "CTAS", "MTB", "AMP", "KEYS", "WEC", "TT", "A", "ON", "CRWD",
+    "TTWO", "FANG", "SBUX", "LRCX", "ILMN", "OKE", "HBAN", "EXC", "EQR", "SPG",
+    "WELL", "ARE", "PPG", "XYL", "EBAY", "IFF", "ZBRA", "EXPE", "MLM", "NEM",
+    "NTRS", "REG", "CPT", "VTR", "ESS", "DRE", "AVB", "PEAK", "MAA", "AEE", "CMS",
+    "ES", "ED", "DTE", "WEC", "ATO", "AEP", "EVRG", "NI", "PNW", "XEL", "LNT",
+    "NRG", "ETR", "PPL", "FE", "PEG", "CNP", "AES", "AEE", "PCG", "EIX", "SRE",
+    "NEE", "DTE", "D", "SO", "DUK", "EXC", "NRG", "XEL", "PPL", "AES", "FE", "NI",
+    "WEC", "EIX", "AEP", "PEG", "PCG", "ED", "PNW", "CMS", "EVRG", "ATO", "AWK",
+    "XEL", "SR", "LNT", "DTE", "DUK", "NI", "PEG", "ED", "CNP", "SRE", "AWK", "AEE",
+    "PNW", "NRG", "CMS", "WEC", "EXC", "SO", "D", "DUK"
+]
+
+# Λειτουργία για λήψη δεδομένων
+@st.cache_data
+def fetch_sp500_data_with_indicators(tickers):
+    sp500_data = []
+    for ticker in tickers:
+        try:
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            last_price = info.get("previousClose", None)
+            market_cap = info.get("marketCap", None)
+            pe_ratio = info.get("trailingPE", None)
+            ps_ratio = info.get("priceToSalesTrailing12Months", None)  # P/S Ratio
+            debt_equity = info.get("debtToEquity", None)  # D/E Ratio
+            dividend_yield = info.get("dividendYield", None)  # Dividend Yield
+            beta = info.get("beta", None)  # Beta
+            forward_eps = info.get("forwardEps", None)
+            growth_rate = info.get("earningsGrowth", None)
+            
+            # Υπολογισμός Expected Growth αν υπάρχει growth_rate
+            if growth_rate:
+                expected_growth = growth_rate * 100
+            else:
+                expected_growth = None
+            
+            # Προσθήκη δεδομένων για κάθε εταιρεία
+            sp500_data.append({
+                "Ticker": ticker,
+                "Last Price ($)": last_price,
+                "Market Cap ($)": market_cap,
+                "P/E Ratio": pe_ratio,
+                "P/S Ratio": ps_ratio,
+                "D/E Ratio": debt_equity,
+                "Dividend Yield (%)": dividend_yield * 100 if dividend_yield is not None else None,
+                "Beta": beta,
+                "Expected Growth (%)": expected_growth
+            })
+        except Exception as e:
+            continue
+    return pd.DataFrame(sp500_data)
+
+# Streamlit UI
+st.title("S&P 500 Stock Indicators")
+
+# Κουμπί για φόρτωση δεδομένων
+if st.button("Load Data"):
+    sp500_df = fetch_sp500_data_with_indicators(sp500_tickers)
+
+    # Έλεγχος για δεδομένα
+    if not sp500_df.empty:
+        # Περιορισμός στις πρώτες 50 εταιρείες με βάση το Market Cap
+        sp500_df = sp500_df.sort_values(by="Market Cap ($)", ascending=False).head(50).reset_index(drop=True)
+
+        # Εμφάνιση δεδομένων σε πίνακα
+        st.subheader(f"Top 50 S&P 500 Companies")
+        st.dataframe(sp500_df)
+
+        # Δημιουργία Interactive Διαγράμματος
+        fig = go.Figure()
+
+        # Bar για Market Cap
+        fig.add_trace(
+            go.Bar(
+                x=sp500_df["Ticker"],
+                y=sp500_df["Market Cap ($)"],
+                name="Market Cap ($)",
+                marker_color="blue",
+                yaxis="y1"
+            )
+        )
+
+        # Line για Expected Growth
+        fig.add_trace(
+            go.Scatter(
+                x=sp500_df["Ticker"],
+                y=sp500_df["Expected Growth (%)"],
+                name="Expected Growth (%)",
+                mode="lines+markers",
+                line=dict(color="red", width=2),
+                yaxis="y2"
+            )
+        )
+
+        # Διαμόρφωση αξόνων
+        fig.update_layout(
+            title="Market Cap and Expected Growth of Top 50 S&P 500 Companies",
+            xaxis=dict(title="Company Ticker"),
+            yaxis=dict(
+                title="Market Cap ($)",
+                titlefont=dict(color="blue"),
+                tickfont=dict(color="blue")
+            ),
+            yaxis2=dict(
+                title="Expected Growth (%)",
+                titlefont=dict(color="red"),
+                tickfont=dict(color="red"),
+                overlaying="y",
+                side="right"
+            ),
+            legend=dict(x=0.5, y=-0.3, orientation="h"),
+            margin=dict(l=40, r=40, t=40, b=40),
+            height=600,
+            width=1000
+        )
+
+        # Εμφάνιση διαγράμματος
+        st.plotly_chart(fig, use_container_width=True)
+
+    else:
+        st.error("No data available for S&P 500 stocks.")
+else:
+    st.info("Press the button above to load the data.")
+
+
+
