@@ -250,58 +250,6 @@ st.plotly_chart(comparison_fig)
 
 
 
-
-# Sidebar input for investment amount
-investment_amount = st.sidebar.number_input(
-    "Enter your available investment amount (€):", min_value=0.0, value=10000.0
-)
-
-# Σύνδεση με τις τρέχουσες τιμές των μετοχών
-current_prices = {ticker: yf.Ticker(ticker).history(period="1d")["Close"].iloc[-1] for ticker in stocks}
-
-
-# Υπολογισμός του ποσού που πρέπει να επενδυθεί σε κάθε μετοχή με βάση τα βάρη
-amount_per_stock = investment_amount * optimal_weights
-
-# Υπολογισμός πόσες μετοχές μπορούν να αγοραστούν για κάθε μετοχή
-shares_to_buy = np.floor(amount_per_stock / np.array(list(current_prices.values())))
-
-# Έλεγχος αν για κάθε μετοχή μπορούμε να αγοράσουμε τουλάχιστον μία μετοχή
-if np.any(shares_to_buy < 1):
-    st.write("Δεν υπάρχει αρκετό κεφάλαιο για να αγοράσετε τουλάχιστον μία μετοχή από κάθε κατηγορία σύμφωνα με τα βάρη του χαρτοφυλακίου.")
-else:
-    # Υπολογισμός του συνολικού κόστους της αγοράς των μετοχών με βάση τα βάρη
-    total_investment_needed = np.sum(shares_to_buy * np.array(list(current_prices.values())))
-
-    # Υπολογισμός αν το διαθέσιμο κεφάλαιο είναι αρκετό για την αγορά
-    remaining_money = investment_amount - total_investment_needed
-
-    # Εμφάνιση αποτελεσμάτων
-    st.write(f"Total available investment: €{investment_amount}")
-    st.write(f"Total investment needed to buy stocks based on weights: €{total_investment_needed}")
-    st.write(f"Remaining money after purchasing: €{remaining_money}")
-
-    # Εμφάνιση της λίστας με τις μετοχές που πρέπει να αγοραστούν
-    shares_df = pd.DataFrame({
-        "Stock": stocks,
-        "Weight": optimal_weights,
-        "Investment (€)": amount_per_stock,
-        "Price per Share (€)": list(current_prices.values()),
-        "Shares to Buy": shares_to_buy,
-        "Total Cost (€)": shares_to_buy * np.array(list(current_prices.values()))
-    })
-
-    st.table(shares_df)
-
-    # Έλεγχος αν το διαθέσιμο ποσό είναι αρκετό
-    if remaining_money < 0:
-        st.write(f"You need an additional €{-remaining_money} to buy stocks based on the portfolio weights.")
-    else:
-        st.write(f"You have enough money to buy the stocks based on the weights. Remaining money: €{remaining_money}")
-
-
-
-
 import yfinance as yf
 import pandas as pd
 import streamlit as st
