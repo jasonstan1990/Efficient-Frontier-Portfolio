@@ -211,3 +211,72 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig)
+
+
+# Υπολογισμός των αποδόσεων του S&P 500 για το ίδιο χρονικό διάστημα
+sp500_return = (close_prices['^GSPC'].pct_change().dropna()).loc[date_range[0]:date_range[1]]
+
+# Υπολογισμός του αποθέματος του S&P 500 με βάση τα βάρη των portfolios
+optimal_sp500_return = np.dot(optimal_weights, sp500_return.mean())
+min_risk_sp500_return = np.dot(min_risk_weights, sp500_return.mean())
+
+# Προσθήκη του S&P 500 στην οπτικοποίηση
+fig2 = go.Figure()
+
+# Scatter plot για τα portfolios
+fig2.add_trace(go.Scatter(
+    x=portfolio_risks,
+    y=portfolio_returns,
+    mode="markers",
+    marker=dict(color=sharpe_ratios, colorscale="Viridis", size=5, showscale=True),
+    text=[
+        f"Return: {r:.2%}<br>Volatility: {v:.2%}<br>Sharpe Ratio: {s:.2f}"
+        for r, v, s in zip(portfolio_returns, portfolio_risks, sharpe_ratios)
+    ],
+    name="Portfolios"
+))
+
+# Scatter plot για το Optimal Portfolio
+fig2.add_trace(go.Scatter(
+    x=[portfolio_risks[max_sharpe_idx]],
+    y=[portfolio_returns[max_sharpe_idx]],
+    mode="markers",
+    marker=dict(color="red", size=12, symbol="star"),
+    name="Optimal Portfolio",
+))
+
+# Scatter plot για το Minimum Risk Portfolio
+fig2.add_trace(go.Scatter(
+    x=[portfolio_risks[min_risk_idx]],
+    y=[portfolio_returns[min_risk_idx]],
+    mode="markers",
+    marker=dict(color="blue", size=12, symbol="star"),
+    name="Minimum Risk Portfolio",
+))
+
+# Προσθήκη της γραμμής του S&P 500
+fig2.add_trace(go.Scatter(
+    x=[sp500_return.std()],
+    y=[sp500_return.mean()],
+    mode="markers+lines",
+    name="S&P 500",
+    marker=dict(color="green", size=12, symbol="triangle-up"),
+))
+
+fig2.update_layout(
+    title="Efficient Frontier (Portfolio Comparison with S&P 500)",
+    xaxis_title="Volatility (Standard Deviation)",
+    yaxis_title="Return",
+    legend=dict(
+        title="Portfolio Types",
+        x=1.20,
+        y=1,
+        xanchor="left",
+        yanchor="top",
+    ),
+    template="plotly_dark"
+)
+
+# Προβολή του διαγράμματος
+st.plotly_chart(fig2)
+
