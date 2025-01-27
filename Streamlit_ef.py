@@ -11,7 +11,7 @@ st.title("Portfolio Optimization with Efficient Frontier")
 st.sidebar.header("Portfolio Configuration")
 stock_input = st.sidebar.text_area(
     "Enter stock tickers separated by commas (e.g., AAPL, MSFT, GOOGL):",
-    value="AAPL, MSFT, GOOGL, AMZN, TSLA")
+    value="CAT, DE, BN, URI, CMI, PWR, MLM, VMC, XYL, STLD, CX, GGB, KBR, DY, MTW")
 stocks = [s.strip().upper() for s in stock_input.split(",")]
 
 # Date range input
@@ -143,17 +143,26 @@ min_risk_idx = results[1].argmin()
 optimal_weights = weights_record[int(results[3, max_sharpe_idx])]
 min_risk_weights = weights_record[int(results[3, min_risk_idx])]
 
-# Display portfolio details
+# Calculate standard deviation for each stock
+stock_stddev = stock_returns.std()
+
+# Create the DataFrame for the optimal portfolio
 optimal_df = pd.DataFrame({
     "Stock": stocks,
     "Optimal Weights": optimal_weights,
+    "Standard Deviation": stock_stddev,
+    "Mean Returns": stock_mean_returns,
 }).sort_values(by="Optimal Weights", ascending=False)
 
+# Create the DataFrame for the minimum risk portfolio
 min_risk_df = pd.DataFrame({
     "Stock": stocks,
     "Min Risk Weights": min_risk_weights,
+    "Standard Deviation": stock_stddev,
+    "Mean Returns": stock_mean_returns,
 }).sort_values(by="Min Risk Weights", ascending=False)
 
+# Display the portfolios with the new columns
 st.subheader("Optimal Portfolio Weights")
 st.table(optimal_df)
 
@@ -173,10 +182,8 @@ fig.add_trace(go.Scatter(
     y=portfolio_returns,
     mode="markers",
     marker=dict(color=sharpe_ratios, colorscale="Viridis", size=5, showscale=True),
-    text=[
-        f"Return: {r:.2%}<br>Volatility: {v:.2%}<br>Sharpe Ratio: {s:.2f}"
-        for r, v, s in zip(portfolio_returns, portfolio_risks, sharpe_ratios)
-    ],
+    text=[f"Return: {r:.2%}<br>Volatility: {v:.2%}<br>Sharpe Ratio: {s:.2f}"
+          for r, v, s in zip(portfolio_returns, portfolio_risks, sharpe_ratios)],
     name="Portfolios"
 ))
 
@@ -256,5 +263,3 @@ comparison_fig.update_layout(
 )
 
 st.plotly_chart(comparison_fig)
-
-
