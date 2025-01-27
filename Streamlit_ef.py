@@ -89,7 +89,30 @@ date_filtered_returns = returns.loc[date_range[0]:date_range[1]]
 stock_returns = date_filtered_returns[stocks]
 sp500_returns = date_filtered_returns['^GSPC']
 
-mean_returns = stock_returns.mean()
+# Fetch Target Median Price Return and adjust mean returns
+adjusted_returns = {}
+for stock in stocks:
+    ticker = yf.Ticker(stock)
+    target_median_price = ticker.info.get('targetMedianPrice', None)
+    current_price = close_prices[stock].iloc[-1]  # Τρέχουσα τιμή μετοχής (τελευταία διαθέσιμη τιμή)
+
+    if target_median_price and current_price:
+        target_return = (target_median_price / current_price) - 1
+        historical_mean_return = stock_returns[stock].mean()
+        if historical_mean_return != 0:  # Αποφυγή διαίρεσης με το μηδέν
+            adjusted_returns[stock] = target_return / historical_mean_return
+        else:
+            adjusted_returns[stock] = 0
+    else:
+        adjusted_returns[stock] = 0
+
+# Μετατροπή σε Series για χρήση
+adjusted_mean_returns = pd.Series(adjusted_returns)
+
+# Αντικατάσταση του mean_returns
+mean_returns = adjusted_mean_returns
+
+# Υπολογισμός της συνδιακύμανσης
 cov_matrix = stock_returns.cov()
 
 # Portfolio simulation
@@ -120,17 +143,7 @@ min_risk_idx = results[1].argmin()
 optimal_weights = weights_record[int(results[3, max_sharpe_idx])]
 min_risk_weights = weights_record[int(results[3, min_risk_idx])]
 
-# Add standard deviation and target median price to each stock
-stock_info = []
-for stock in stocks:
-    ticker = yf.Ticker(stock)
-    target_median_price = ticker.info.get('targetMedianPrice', 'N/A')
-    stock_stddev = stock_returns[stock].std()
-    stock_info.append([stock, stock_stddev, target_median_price])
-
-stock_info_df = pd.DataFrame(stock_info, columns=["Stock", "Standard Deviation", "Target Median Price"])
-
-# Display portfolio details with additional columns
+# Display portfolio details
 optimal_df = pd.DataFrame({
     "Stock": stocks,
     "Optimal Weights": optimal_weights,
@@ -140,10 +153,6 @@ min_risk_df = pd.DataFrame({
     "Stock": stocks,
     "Min Risk Weights": min_risk_weights,
 }).sort_values(by="Min Risk Weights", ascending=False)
-
-# Merge the additional info with the portfolio data
-optimal_df = optimal_df.merge(stock_info_df, on="Stock", how="left")
-min_risk_df = min_risk_df.merge(stock_info_df, on="Stock", how="left")
 
 st.subheader("Optimal Portfolio Weights")
 st.table(optimal_df)
@@ -164,8 +173,10 @@ fig.add_trace(go.Scatter(
     y=portfolio_returns,
     mode="markers",
     marker=dict(color=sharpe_ratios, colorscale="Viridis", size=5, showscale=True),
-    text=[f"Return: {r:.2%}<br>Volatility: {v:.2%}<br>Sharpe Ratio: {s:.2f}"
-          for r, v, s in zip(portfolio_returns, portfolio_risks, sharpe_ratios)],
+    text=[
+        f"Return: {r:.2%}<br>Volatility: {v:.2%}<br>Sharpe Ratio: {s:.2f}"
+        for r, v, s in zip(portfolio_returns, portfolio_risks, sharpe_ratios)
+    ],
     name="Portfolios"
 ))
 
@@ -200,200 +211,3 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig)
-
-
-# Compare optimal and minimum risk portfolios with S&P 500 (For all available period)
-st.write("Comparing Optimal Portfolio and Minimum Risk Portfolio with S&P 500")
-
-# Calculate the cumulative returns for the optimal portfolio, min risk portfolio, and S&P 500 for the entire period
-optimal_cum_returns = (1 + returns[stocks].dot(optimal_weights)).cumprod()
-min_risk_cum_returns = (1 + returns[stocks].dot(min_risk_weights)).cumprod()
-sp500_cum_returns = (1 + returns['^GSPC']).cumprod()
-
-# Plot the comparison
-comparison_fig = go.Figure()
-
-comparison_fig.add_trace(go.Scatter(
-    x=optimal_cum_returns.index,
-    y=optimal_cum_returns,
-    mode="lines",
-    name="Optimal Portfolio",
-    line=dict(color="green"),
-))
-
-comparison_fig.add_trace(go.Scatter(
-    x=min_risk_cum_returns.index,
-    y=min_risk_cum_returns,
-    mode="lines",
-    name="Minimum Risk Portfolio",
-    line=dict(color="orange"),
-))
-
-comparison_fig.add_trace(go.Scatter(
-    x=sp500_cum_returns.index,
-    y=sp500_cum_returns,
-    mode="lines",
-    name="S&P 500",
-    line=dict(color="blue", dash="dot"),
-))
-
-comparison_fig.update_layout(
-    title="Cumulative Returns: Optimal Portfolio vs Minimum Risk Portfolio vs S&P 500",
-    xaxis_title="Date",
-    yaxis_title="Cumulative Return",
-    template="plotly_dark"
-)
-
-st.plotly_chart(comparison_fig)
-
-
-
-
-
-import yfinance as yf
-import pandas as pd
-import streamlit as st
-import plotly.graph_objects as go
-
-# Λίστα με tickers του S&P 500
-sp500_tickers = [
-    "AAPL", "MSFT", "AMZN", "GOOGL", "GOOG", "META", "TSLA", "BRK.B", "NVDA", "JPM",
-    "JNJ", "V", "UNH", "XOM", "PG", "MA", "HD", "CVX", "LLY", "MRK", "ABBV", "PEP",
-    "KO", "BAC", "PFE", "COST", "AVGO", "DIS", "ADBE", "CSCO", "CRM", "MCD", "ACN",
-    "NFLX", "ABT", "DHR", "NKE", "NEE", "LIN", "WMT", "PM", "TMO", "TMUS", "TXN",
-    "INTC", "ORCL", "UNP", "LOW", "AMD", "UPS", "AMGN", "GS", "CAT", "ELV", "PLD",
-    "BLK", "CVS", "MS", "AXP", "RTX", "HON", "MDT", "SCHW", "SPGI", "NOW", "IBM",
-    "C", "LMT", "DE", "BMY", "AMT", "COP", "QCOM", "BKNG", "ADI", "T", "ISRG",
-    "INTU", "GE", "MO", "ZTS", "WM", "GILD", "ADP", "MU", "VRTX", "SYK", "REGN",
-    "HUM", "SO", "EQIX", "SLB", "PGR", "BDX", "FDX", "ENPH", "CME", "ITW", "EL",
-    "FIS", "KLAC", "ATVI", "EOG", "CSX", "EW", "ICE", "MMC", "NSC", "AON", "TRV",
-    "APD", "PXD", "MPC", "TJX", "KMB", "COF", "PSA", "MRNA", "DG", "AEP", "BSX",
-    "HCA", "SHW", "GM", "PH", "ADI", "EMR", "ECL", "ETN", "KHC", "NOC", "CCI",
-    "MAR", "D", "ALGN", "MET", "SRE", "CTVA", "FTNT", "NXPI", "AIG", "CDNS", "MSI",
-    "IDXX", "CMG", "ALL", "ROST", "STZ", "F", "HLT", "WMB", "OXY", "RSG", "PCAR",
-    "VLO", "PAYX", "CTAS", "MTB", "AMP", "KEYS", "WEC", "TT", "A", "ON", "CRWD",
-    "TTWO", "FANG", "SBUX", "LRCX", "ILMN", "OKE", "HBAN", "EXC", "EQR", "SPG",
-    "WELL", "ARE", "PPG", "XYL", "EBAY", "IFF", "ZBRA", "EXPE", "MLM", "NEM",
-    "NTRS", "REG", "CPT", "VTR", "ESS", "DRE", "AVB", "PEAK", "MAA", "AEE", "CMS",
-    "ES", "ED", "DTE", "WEC", "ATO", "AEP", "EVRG", "NI", "PNW", "XEL", "LNT",
-    "NRG", "ETR", "PPL", "FE", "PEG", "CNP", "AES", "AEE", "PCG", "EIX", "SRE",
-    "NEE", "DTE", "D", "SO", "DUK", "EXC", "NRG", "XEL", "PPL", "AES", "FE", "NI",
-    "WEC", "EIX", "AEP", "PEG", "PCG", "ED", "PNW", "CMS", "EVRG", "ATO", "AWK",
-    "XEL", "SR", "LNT", "DTE", "DUK", "NI", "PEG", "ED", "CNP", "SRE", "AWK", "AEE",
-    "PNW", "NRG", "CMS", "WEC", "EXC", "SO", "D", "DUK"
-]
-
-# Λειτουργία για λήψη δεδομένων
-@st.cache_data
-def fetch_sp500_data_with_indicators(tickers):
-    sp500_data = []
-    for ticker in tickers:
-        try:
-            stock = yf.Ticker(ticker)
-            info = stock.info
-            last_price = info.get("previousClose", None)
-            market_cap = info.get("marketCap", None)
-            pe_ratio = info.get("trailingPE", None)
-            ps_ratio = info.get("priceToSalesTrailing12Months", None)  # P/S Ratio
-            debt_equity = info.get("debtToEquity", None)  # D/E Ratio
-            dividend_yield = info.get("dividendYield", None)  # Dividend Yield
-            beta = info.get("beta", None)  # Beta
-            forward_eps = info.get("forwardEps", None)
-            growth_rate = info.get("earningsGrowth", None)
-            
-            # Υπολογισμός Expected Growth αν υπάρχει growth_rate
-            if growth_rate:
-                expected_growth = growth_rate * 100
-            else:
-                expected_growth = None
-            
-            # Προσθήκη δεδομένων για κάθε εταιρεία
-            sp500_data.append({
-                "Ticker": ticker,
-                "Last Price ($)": last_price,
-                "Market Cap ($)": market_cap,
-                "P/E Ratio": pe_ratio,
-                "P/S Ratio": ps_ratio,
-                "D/E Ratio": debt_equity,
-                "Dividend Yield (%)": dividend_yield * 100 if dividend_yield is not None else None,
-                "Beta": beta,
-                "Expected Growth (%)": expected_growth
-            })
-        except Exception as e:
-            continue
-    return pd.DataFrame(sp500_data)
-
-# Streamlit UI
-st.title("S&P 500 Stock Indicators")
-
-# Κουμπί για φόρτωση δεδομένων
-if st.button("Load Data"):
-    sp500_df = fetch_sp500_data_with_indicators(sp500_tickers)
-
-    # Έλεγχος για δεδομένα
-    if not sp500_df.empty:
-        # Περιορισμός στις πρώτες 50 εταιρείες με βάση το Market Cap
-        sp500_df = sp500_df.sort_values(by="Market Cap ($)", ascending=False).head(50).reset_index(drop=True)
-
-        # Εμφάνιση δεδομένων σε πίνακα
-        st.subheader(f"Top 50 S&P 500 Companies")
-        st.dataframe(sp500_df)
-
-        # Δημιουργία Interactive Διαγράμματος
-        fig = go.Figure()
-
-        # Bar για Market Cap
-        fig.add_trace(
-            go.Bar(
-                x=sp500_df["Ticker"],
-                y=sp500_df["Market Cap ($)"],
-                name="Market Cap ($)",
-                marker_color="blue",
-                yaxis="y1"
-            )
-        )
-
-        # Line για Expected Growth
-        fig.add_trace(
-            go.Scatter(
-                x=sp500_df["Ticker"],
-                y=sp500_df["Expected Growth (%)"],
-                name="Expected Growth (%)",
-                mode="lines+markers",
-                line=dict(color="red", width=2),
-                yaxis="y2"
-            )
-        )
-
-        # Διαμόρφωση αξόνων
-        fig.update_layout(
-            title="Market Cap and Expected Growth of Top 50 S&P 500 Companies",
-            xaxis=dict(title="Company Ticker"),
-            yaxis=dict(
-                title="Market Cap ($)",
-                titlefont=dict(color="blue"),
-                tickfont=dict(color="blue")
-            ),
-            yaxis2=dict(
-                title="Expected Growth (%)",
-                titlefont=dict(color="red"),
-                tickfont=dict(color="red"),
-                overlaying="y",
-                side="right"
-            ),
-            legend=dict(x=0.5, y=-0.3, orientation="h"),
-            margin=dict(l=40, r=40, t=40, b=40),
-            height=600,
-            width=1000
-        )
-
-        # Εμφάνιση διαγράμματος
-        st.plotly_chart(fig, use_container_width=True)
-
-    else:
-        st.error("No data available for S&P 500 stocks.")
-else:
-    st.info("Press the button above to load the data.")
-
-
-
