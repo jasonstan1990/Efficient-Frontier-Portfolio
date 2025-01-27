@@ -120,7 +120,17 @@ min_risk_idx = results[1].argmin()
 optimal_weights = weights_record[int(results[3, max_sharpe_idx])]
 min_risk_weights = weights_record[int(results[3, min_risk_idx])]
 
-# Display portfolio details
+# Add standard deviation and target median price to each stock
+stock_info = []
+for stock in stocks:
+    ticker = yf.Ticker(stock)
+    target_median_price = ticker.info.get('targetMedianPrice', 'N/A')
+    stock_stddev = stock_returns[stock].std()
+    stock_info.append([stock, stock_stddev, target_median_price])
+
+stock_info_df = pd.DataFrame(stock_info, columns=["Stock", "Standard Deviation", "Target Median Price"])
+
+# Display portfolio details with additional columns
 optimal_df = pd.DataFrame({
     "Stock": stocks,
     "Optimal Weights": optimal_weights,
@@ -130,6 +140,10 @@ min_risk_df = pd.DataFrame({
     "Stock": stocks,
     "Min Risk Weights": min_risk_weights,
 }).sort_values(by="Min Risk Weights", ascending=False)
+
+# Merge the additional info with the portfolio data
+optimal_df = optimal_df.merge(stock_info_df, on="Stock", how="left")
+min_risk_df = min_risk_df.merge(stock_info_df, on="Stock", how="left")
 
 st.subheader("Optimal Portfolio Weights")
 st.table(optimal_df)
@@ -150,10 +164,8 @@ fig.add_trace(go.Scatter(
     y=portfolio_returns,
     mode="markers",
     marker=dict(color=sharpe_ratios, colorscale="Viridis", size=5, showscale=True),
-    text=[
-        f"Return: {r:.2%}<br>Volatility: {v:.2%}<br>Sharpe Ratio: {s:.2f}"
-        for r, v, s in zip(portfolio_returns, portfolio_risks, sharpe_ratios)
-    ],
+    text=[f"Return: {r:.2%}<br>Volatility: {v:.2%}<br>Sharpe Ratio: {s:.2f}"
+          for r, v, s in zip(portfolio_returns, portfolio_risks, sharpe_ratios)],
     name="Portfolios"
 ))
 
@@ -188,6 +200,7 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig)
+
 
 # Compare optimal and minimum risk portfolios with S&P 500 (For all available period)
 st.write("Comparing Optimal Portfolio and Minimum Risk Portfolio with S&P 500")
