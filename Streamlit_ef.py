@@ -94,25 +94,25 @@ adjusted_returns = {}
 for stock in stocks:
     ticker = yf.Ticker(stock)
     target_median_price = ticker.info.get('targetMedianPrice', None)
-    current_price = close_prices[stock].iloc[-1]  # Latest available stock price
+    current_price = close_prices[stock].iloc[-1]  # Τρέχουσα τιμή μετοχής (τελευταία διαθέσιμη τιμή)
 
     if target_median_price and current_price:
         target_return = (target_median_price / current_price) - 1
         historical_mean_return = stock_returns[stock].mean()
-        if historical_mean_return != 0:  # Avoid division by zero
+        if historical_mean_return != 0:  # Αποφυγή διαίρεσης με το μηδέν
             adjusted_returns[stock] = target_return / historical_mean_return
         else:
             adjusted_returns[stock] = 0
     else:
         adjusted_returns[stock] = 0
 
-# Convert to Series for use
+# Μετατροπή σε Series για χρήση
 adjusted_mean_returns = pd.Series(adjusted_returns)
 
-# Replace mean_returns with adjusted_mean_returns
+# Αντικατάσταση του mean_returns
 mean_returns = adjusted_mean_returns
 
-# Calculate covariance matrix
+# Υπολογισμός της συνδιακύμανσης
 cov_matrix = stock_returns.cov()
 
 # Portfolio simulation
@@ -143,23 +143,25 @@ min_risk_idx = results[1].argmin()
 optimal_weights = weights_record[int(results[3, max_sharpe_idx])]
 min_risk_weights = weights_record[int(results[3, min_risk_idx])]
 
-# Create the DataFrame for the optimal portfolio
+# Υπολογισμός του standard deviation για κάθε μετοχή
+stock_volatility = np.sqrt(np.diag(cov_matrix))
+
+# Δημιουργία DataFrames με τα πρόσθετα δεδομένα
 optimal_df = pd.DataFrame({
     "Stock": stocks,
     "Optimal Weights": optimal_weights,
-    "Standard Deviation": [np.sqrt(np.dot(optimal_weights.T, np.dot(cov_matrix, optimal_weights)))] * len(stocks),
-    "Mean Returns": adjusted_mean_returns,
+    "Adjusted Mean Return": adjusted_mean_returns,
+    "Standard Deviation": stock_volatility,
 }).sort_values(by="Optimal Weights", ascending=False)
 
-# Create the DataFrame for the minimum risk portfolio
 min_risk_df = pd.DataFrame({
     "Stock": stocks,
     "Min Risk Weights": min_risk_weights,
-    "Standard Deviation": [np.sqrt(np.dot(min_risk_weights.T, np.dot(cov_matrix, min_risk_weights)))] * len(stocks),
-    "Mean Returns": adjusted_mean_returns,
+    "Adjusted Mean Return": adjusted_mean_returns,
+    "Standard Deviation": stock_volatility,
 }).sort_values(by="Min Risk Weights", ascending=False)
 
-# Display portfolio details
+# Εμφάνιση των πινάκων με τα πρόσθετα δεδομένα
 st.subheader("Optimal Portfolio Weights")
 st.table(optimal_df)
 
@@ -179,8 +181,10 @@ fig.add_trace(go.Scatter(
     y=portfolio_returns,
     mode="markers",
     marker=dict(color=sharpe_ratios, colorscale="Viridis", size=5, showscale=True),
-    text=[f"Return: {r:.2%}<br>Volatility: {v:.2%}<br>Sharpe Ratio: {s:.2f}"
-          for r, v, s in zip(portfolio_returns, portfolio_risks, sharpe_ratios)],
+    text=[
+        f"Return: {r:.2%}<br>Volatility: {v:.2%}<br>Sharpe Ratio: {s:.2f}"
+        for r, v, s in zip(portfolio_returns, portfolio_risks, sharpe_ratios)
+    ],
     name="Portfolios"
 ))
 
@@ -215,6 +219,7 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig)
+
 
 # Compare optimal and minimum risk portfolios with S&P 500 (For all available period)
 st.write("Comparing Optimal Portfolio and Minimum Risk Portfolio with S&P 500")
