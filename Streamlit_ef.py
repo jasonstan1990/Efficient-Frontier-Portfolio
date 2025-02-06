@@ -240,7 +240,7 @@ st.plotly_chart(comparison_fig)
 
 # Sidebar input for investment amount
 investment_amount = st.sidebar.number_input(
-    "Enter your available investment amount (€):", min_value=0.0, value=30000.0
+    "Enter your available investment amount (€):", min_value=0.0, value=40000.0
 )
 
 # Σύνδεση με τις τρέχουσες τιμές των μετοχών
