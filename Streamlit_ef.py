@@ -11,7 +11,7 @@ st.title("Portfolio Optimization with Efficient Frontier")
 st.sidebar.header("Portfolio Configuration")
 stock_input = st.sidebar.text_area(
     "Enter stock tickers separated by commas (e.g., AAPL, MSFT, GOOGL):",
-    value="PG, LLY, TMUS,PEP,AVGO, FE")
+    value="PG, LLY, TMUS, PEP, AVGO, FE")
 stocks = [s.strip().upper() for s in stock_input.split(",")]
 
 # Date range input
@@ -240,7 +240,7 @@ st.plotly_chart(comparison_fig)
 
 # Sidebar input for investment amount
 investment_amount = st.sidebar.number_input(
-    "Enter your available investment amount (€):", min_value=0.0, value=10000.0
+    "Enter your available investment amount (€):", min_value=0.0, value=30000.0
 )
 
 # Σύνδεση με τις τρέχουσες τιμές των μετοχών
