@@ -16,7 +16,7 @@ stocks = [s.strip().upper() for s in stock_input.split(",")]
 
 # Date range input
 start_date = st.sidebar.date_input("Start date:", value=pd.Timestamp("2020-01-01"))
-end_date = st.sidebar.date_input("End date:", value=pd.Timestamp("2024-12-31"))
+end_date = st.sidebar.date_input("End date:", value=pd.Timestamp("2025-01-31"))
 
 # Frequency input
 frequency = st.sidebar.selectbox(
